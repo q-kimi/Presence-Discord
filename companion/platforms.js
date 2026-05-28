@@ -22,6 +22,13 @@ const PLATFORMS = [
     needsTmdbPoster: true,
   },
   {
+    id: "plex",
+    name: "Plex",
+    type: "plex_presence",
+    log: "pl",
+    needsTmdbPoster: true,
+  },
+  {
     id: "twitch",
     name: "Twitch",
     type: "twitch_presence",
