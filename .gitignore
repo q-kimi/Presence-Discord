@@ -11,8 +11,5 @@ dist/
 # ─── Outils de build (binaires auto-téléchargés) ──────────────────────────────
 companion/build/rcedit.exe
 
-# ─── Archives ─────────────────────────────────────────────────────────────────
-*.zip
-
 # ─── Claude Code ──────────────────────────────────────────────────────────────
 .claude/
