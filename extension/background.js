@@ -39,16 +39,17 @@ async function connect() {
     } catch {}
   };
 
-  ws.onclose = () => {
-    wsReady = false;
-    lastEnrichedPayload = null;
-    setStatus({ connected: false, error: "Compagnon déconnecté" });
-    scheduleReconnect();
-  };
-
   ws.onerror = () => {
     wsReady = false;
     setStatus({ connected: false, error: "Erreur WebSocket" });
+  };
+
+  ws.onclose = () => {
+    wsReady = false;
+    lastEnrichedPayload = null;
+    if (currentStatus.error !== "Erreur WebSocket") {
+      setStatus({ connected: false, error: "Compagnon déconnecté" });
+    }
     scheduleReconnect();
   };
 }
@@ -184,12 +185,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// Heartbeat — ping le compagnon toutes les 15s quand une présence est active et en lecture.
-// Le service worker n'est pas throttlé comme les onglets en arrière-plan, ce qui garantit
-// que le watchdog du compagnon (45s) ne fire jamais sur un onglet simplement mis en arrière-plan.
+// Heartbeat — ping le compagnon toutes les 15s dès qu'une présence est active (lecture ou pause).
+// Empêche le watchdog du compagnon (45s) de couper la connexion quand le contenu est mis en pause.
 setInterval(() => {
   if (!lastPayload || lastPayload.type === "presence_clear") return;
-  if (!lastPayload.isPlaying) return;
   trySend({ type: "heartbeat" });
 }, 15_000);
 

@@ -1,5 +1,5 @@
 const path = require("path");
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require("electron");
 
 // ── Intercept console.log BEFORE requiring core.js ───────────────────────────
 const MAX_LOGS  = 200;
@@ -144,51 +144,10 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", e => e.preventDefault());
 
-// ── Notifications & state polling ─────────────────────────────────────────────
-function notify(body) {
-  if (Notification.isSupported())
-    new Notification({ title: "Presence Discord", body, silent: false }).show();
-}
-
-let _lastDiscState          = null;
-let _lastWsState            = null;
-let _wsDisconnectTimer      = null;
-let _wsWasDisconnectedLong  = false;
-
+// ── State polling ─────────────────────────────────────────────────────────────
 setInterval(() => {
-  const state   = core.getState();
-  const discNow = state.discConnected;
-  const wsNow   = state.wsConnected;
-
+  const state = core.getState();
   if (mainWin?.isVisible()) mainWin.webContents.send("state", state);
-
-  if (_lastDiscState === null) {
-    _lastDiscState = discNow;
-    if (!discNow) notify("Discord non détecté ! lance Discord pour activer la présence.");
-  } else if (discNow !== _lastDiscState) {
-    _lastDiscState = discNow;
-    notify(discNow ? "Reconnecté à Discord" : "Déconnecté de Discord");
-  }
-
-  if (_lastWsState === null) {
-    _lastWsState = wsNow;
-  } else if (wsNow !== _lastWsState) {
-    _lastWsState = wsNow;
-    if (!wsNow) {
-      // Only notify if the disconnect lasts more than 15s (filters SW restart noise)
-      _wsDisconnectTimer = setTimeout(() => {
-        _wsWasDisconnectedLong = true;
-        notify("Extension déconnectée");
-      }, 15_000);
-    } else {
-      clearTimeout(_wsDisconnectTimer);
-      _wsDisconnectTimer = null;
-      if (_wsWasDisconnectedLong) {
-        _wsWasDisconnectedLong = false;
-        notify("Extension connectée");
-      }
-    }
-  }
 }, 1000);
 
 app.on("before-quit", () => {
