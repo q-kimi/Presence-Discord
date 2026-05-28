@@ -6,7 +6,8 @@ companion/node_modules/
 
 # ─── Build output ─────────────────────────────────────────────────────────────
 companion/dist/
-dist/
+dist/win-unpacked/
+dist/builder-debug.yml
 
 # ─── Outils de build (binaires auto-téléchargés) ──────────────────────────────
 companion/build/rcedit.exe
