@@ -1,13 +1,14 @@
 // popup.js
 const $ = id => document.getElementById(id);
 
-const PLATFORM = {
-  youtube_presence:    "YouTube",
-  nakastream_presence: "Nakastream",
-  cinepulse_presence:  "Cinepulse",
-  twitch_presence:     "Twitch",
-  primevideo_presence: "Prime Video",
-};
+let platforms = [];
+let platformByType = {};
+let siteState = {};
+let prefsLoaded = false;
+let inactiveTicks = 0;
+let syncedPayload = null;
+let syncedAt = 0;
+let lastSec = -1;
 
 function fmtTime(s) {
   s = Math.max(0, Math.floor(s || 0));
@@ -15,9 +16,6 @@ function fmtTime(s) {
   const p = n => String(n).padStart(2, "0");
   return h > 0 ? `${h}:${p(m)}:${p(sec)}` : `${m}:${p(sec)}`;
 }
-
-// ─── Interpolation temps ──────────────────────────────────────────────────────
-let syncedPayload = null, syncedAt = 0, lastSec = -1;
 
 function liveTime() {
   if (!syncedPayload) return 0;
@@ -46,7 +44,6 @@ function liveTime() {
   requestAnimationFrame(loop);
 })();
 
-// ─── Navigation par onglets avec re-déclenchement des animations ──────────────
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -63,14 +60,38 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-// ─── Toggles site ─────────────────────────────────────────────────────────────
-const SITE_KEYS = ["cinepulse", "youtube", "nakastream", "twitch", "primevideo"];
+function setPlatforms(nextPlatforms) {
+  if (!Array.isArray(nextPlatforms) || nextPlatforms.length === 0 || platforms.length > 0) return;
 
-const DEFAULT_PREFS = {
-  enabledSites: { cinepulse: true, youtube: true, nakastream: true, twitch: true, primevideo: true },
-};
+  platforms = nextPlatforms;
+  platformByType = Object.fromEntries(platforms.map(p => [p.type, p]));
+  siteState = Object.fromEntries(platforms.map(p => [p.id, p.enabledByDefault !== false]));
+  renderSiteToggles();
+}
 
-const siteState = { cinepulse: true, youtube: true, nakastream: true, twitch: true, primevideo: true };
+function renderSiteToggles() {
+  const wrap = $("siteToggles");
+  if (!wrap) return;
+  wrap.textContent = "";
+
+  for (const platform of platforms) {
+    const row = document.createElement("div");
+    row.className = "toggle-row";
+    row.dataset.site = platform.id;
+
+    const name = document.createElement("span");
+    name.className = "toggle-name";
+    name.textContent = platform.name;
+
+    const sw = document.createElement("div");
+    sw.className = "switch on";
+    sw.id = `sw-${platform.id}`;
+
+    row.append(name, sw);
+    row.addEventListener("click", () => setSwitch(platform.id, !siteState[platform.id]));
+    wrap.append(row);
+  }
+}
 
 function setSwitch(key, val) {
   siteState[key] = val;
@@ -79,50 +100,37 @@ function setSwitch(key, val) {
   el.classList.toggle("on", val);
 }
 
-document.querySelectorAll(".toggle-row").forEach(row => {
-  row.addEventListener("click", () => {
-    const key = row.dataset.site;
-    setSwitch(key, !siteState[key]);
-  });
-});
-
-let prefsLoaded   = false;
-let inactiveTicks = 0;
-
-async function loadPrefs() {
-  const prefs = await chrome.storage.local.get({ enabledSites: DEFAULT_PREFS.enabledSites });
-  const sites = prefs.enabledSites || DEFAULT_PREFS.enabledSites;
-  SITE_KEYS.forEach(k => setSwitch(k, sites[k] !== false));
+async function loadPrefs(state) {
+  setPlatforms(state.platforms);
+  const savedSites = state.prefs?.enabledSites || {};
+  for (const platform of platforms) {
+    setSwitch(platform.id, savedSites[platform.id] !== false);
+  }
   prefsLoaded = true;
 }
 
-// ─── Refresh ──────────────────────────────────────────────────────────────────
 async function refresh() {
   let state;
   try { state = await chrome.runtime.sendMessage({ kind: "get_state" }); }
   catch { return; }
   if (!state) return;
 
+  setPlatforms(state.platforms);
   const ok = !!state.status?.connected;
   $("conn-dot").style.display = ok ? "flex" : "none";
 
-  if (!prefsLoaded) await loadPrefs();
+  if (!prefsLoaded) await loadPrefs(state);
 
   const p = state.lastPayload;
-  const active = Object.keys(PLATFORM).includes(p?.type) &&
-    !!(p.title || p.seriesTitle || p.movieTitle || p.videoTitle);
+  const active = !!platformByType[p?.type] && !!(p.title || p.seriesTitle || p.movieTitle || p.videoTitle);
 
-  if (active) {
-    inactiveTicks = 0;
-  } else {
-    inactiveTicks++;
-  }
+  if (active) inactiveTicks = 0;
+  else inactiveTicks++;
 
-  // Masquer seulement après 2 cycles inactifs consécutifs (évite le clignotement sur restart SW)
   const shouldHide = !active && inactiveTicks >= 2;
 
-  $("npIdle").style.display   = shouldHide ? "flex"  : (active ? "none" : $("npIdle").style.display);
-  $("npActive").style.display = shouldHide ? "none"  : (active ? "flex" : $("npActive").style.display);
+  $("npIdle").style.display = shouldHide ? "flex" : (active ? "none" : $("npIdle").style.display);
+  $("npActive").style.display = shouldHide ? "none" : (active ? "flex" : $("npActive").style.display);
 
   if (!active) {
     if (shouldHide) {
@@ -134,13 +142,14 @@ async function refresh() {
     return;
   }
 
-  syncedPayload = p; syncedAt = p.timestamp || Date.now(); lastSec = -1;
+  syncedPayload = p;
+  syncedAt = p.timestamp || Date.now();
+  lastSec = -1;
 
-  const isYT   = p.type === "youtube_presence";
   const isLive = !!p.isLive;
   const playing = !!p.isPlaying;
 
-  $("npPlatform").textContent = PLATFORM[p.type] || "Cinepulse";
+  $("npPlatform").textContent = platformByType[p.type]?.name || "Presence";
 
   const bd = $("npBackdrop");
   if (p.poster) {
@@ -154,8 +163,8 @@ async function refresh() {
   $("npState").className = "np-state " + (playing ? "playing" : "paused");
 
   const badge = $("npBadge");
-  badge.className   = "np-badge " + (isLive ? "live" : playing ? "playing" : "paused");
-  badge.textContent = isLive ? "● En direct" : playing ? "En lecture" : "En pause";
+  badge.className = "np-badge " + (isLive ? "live" : playing ? "playing" : "paused");
+  badge.textContent = isLive ? "En direct" : playing ? "En lecture" : "En pause";
 
   const poster = $("npPoster");
   if (p.poster) {
@@ -171,7 +180,7 @@ async function refresh() {
   const epTitleEl = $("npEpTitle");
   const epTitleText = p.streamTitle || (p.contentType === "series" ? p.episodeTitle : null);
   if (epTitleText) {
-    epTitleEl.textContent   = epTitleText;
+    epTitleEl.textContent = epTitleText;
     epTitleEl.style.display = "";
   } else {
     epTitleEl.style.display = "none";
@@ -179,10 +188,10 @@ async function refresh() {
 
   const epEl = $("npEpisode");
   if (p.contentType === "series" && p.season != null && p.episodeNum != null) {
-    epEl.textContent   = `Saison ${p.season} · Épisode ${p.episodeNum}`;
+    epEl.textContent = `Saison ${p.season} - Episode ${p.episodeNum}`;
     epEl.style.display = "";
   } else if (p.channel) {
-    epEl.textContent   = p.channel;
+    epEl.textContent = p.channel;
     epEl.style.display = "";
   } else {
     epEl.style.display = "none";
@@ -192,21 +201,20 @@ async function refresh() {
 
   if (isLive) {
     const elapsed = p.liveStartAt ? Math.floor((Date.now() - p.liveStartAt) / 1000) : 0;
-    $("npCurrent").textContent  = fmtTime(elapsed);
+    $("npCurrent").textContent = fmtTime(elapsed);
     $("npDuration").textContent = "En direct";
-    $("npBar").style.width      = "0%";
+    $("npBar").style.width = "0%";
   } else if (!playing) {
     const cur = p.currentTime || 0, dur = p.duration || 0;
-    $("npCurrent").textContent  = fmtTime(cur);
+    $("npCurrent").textContent = fmtTime(cur);
     $("npDuration").textContent = fmtTime(dur);
     $("npBar").style.width = dur ? Math.min(100, cur / dur * 100) + "%" : "0%";
   } else {
     $("npDuration").textContent = fmtTime(p.duration || 0);
   }
 
-  // Bouton play/pause — masqué sur les lives, innerHTML mis à jour seulement si l'état change
   const controls = $("mediaControls");
-  const btnPP    = $("btnPlayPause");
+  const btnPP = $("btnPlayPause");
   if (active && !isLive) {
     controls.classList.add("visible");
     const nextState = playing ? "playing" : "paused";
@@ -221,7 +229,6 @@ async function refresh() {
   }
 }
 
-// ─── Contrôles lecture ────────────────────────────────────────────────────────
 $("btnPlayPause").addEventListener("click", () => {
   chrome.runtime.sendMessage({ kind: "media_control" }).catch(() => {});
 });
@@ -232,21 +239,18 @@ $("btnNext").addEventListener("click", () => {
   chrome.runtime.sendMessage({ kind: "media_next" }).catch(() => {});
 });
 
-// ─── Save prefs ───────────────────────────────────────────────────────────────
 const SAVE_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`;
 const CHECK_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
 
 $("savePrefs").addEventListener("click", async () => {
-  const enabledSites = Object.fromEntries(SITE_KEYS.map(k => [k, siteState[k]]));
-
+  const enabledSites = Object.fromEntries(platforms.map(platform => [platform.id, siteState[platform.id]]));
   await chrome.storage.local.set({ enabledSites });
-
   await chrome.runtime.sendMessage({ kind: "prefs_updated" });
 
   const btn = $("savePrefs");
   const origHTML = btn.innerHTML;
-  btn.innerHTML = `${CHECK_ICON} Enregistré`;
-  setTimeout(() => { btn.innerHTML = origHTML; }, 1500);
+  btn.innerHTML = `${CHECK_ICON} Enregistre`;
+  setTimeout(() => { btn.innerHTML = origHTML || SAVE_ICON; }, 1500);
 });
 
 refresh();

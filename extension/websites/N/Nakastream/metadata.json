@@ -1,0 +1,9 @@
+{
+  "id": "nakastream",
+  "name": "Nakastream",
+  "type": "nakastream_presence",
+  "matches": ["*://*.nakastream.tv/*"],
+  "presenceScript": "websites/N/Nakastream/presence.js",
+  "enabledByDefault": true,
+  "needsTmdbPoster": true
+}

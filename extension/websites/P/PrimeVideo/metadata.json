@@ -1,0 +1,9 @@
+{
+  "id": "primevideo",
+  "name": "Prime Video",
+  "type": "primevideo_presence",
+  "matches": ["*://*.primevideo.com/*"],
+  "presenceScript": "websites/P/PrimeVideo/presence.js",
+  "enabledByDefault": true,
+  "needsTmdbPoster": true
+}

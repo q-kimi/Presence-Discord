@@ -3,6 +3,13 @@ const net   = require("net");
 const fs    = require("fs");
 const path  = require("path");
 const https = require("https");
+const {
+  PLATFORMS,
+  PLATFORM_LABEL,
+  PRESENCE_TYPES,
+  NEEDS_TMDB_POSTER_TYPES,
+  DEFAULT_LARGE_IMAGE_TYPES,
+} = require("./platforms");
 
 // ─── .env ─────────────────────────────────────────────────────────────────────
 (function loadEnv() {
@@ -302,9 +309,7 @@ async function enrichPayload(p) {
     enriched.episodeTitle = await fetchTMDBEpisodeTitle(enriched.seriesTitle, enriched.season, enriched.episodeNum);
   }
   const needsPoster = !enriched.poster && (
-    enriched.type === "cinepulse_presence" ||
-    enriched.type === "nakastream_presence" ||
-    enriched.type === "primevideo_presence"
+    NEEDS_TMDB_POSTER_TYPES.has(enriched.type)
   );
   if (needsPoster) {
     const searchTitle = enriched.seriesTitle || enriched.movieTitle || enriched.title;
@@ -342,20 +347,7 @@ async function fetchAssetUrls(retryMs = 5_000) {
 }
 
 // ─── Présence ─────────────────────────────────────────────────────────────────
-const PLATFORM_LABEL = {
-  youtube_presence:    "YouTube",
-  nakastream_presence: "Nakastream",
-  twitch_presence:     "Twitch",
-  primevideo_presence: "Prime Video",
-  cinepulse_presence:  "Cinepulse",
-};
-const PLATFORM_LOG = {
-  youtube_presence:    L.yt,
-  nakastream_presence: L.nk,
-  twitch_presence:     L.tw,
-  primevideo_presence: L.pv,
-  cinepulse_presence:  L.cp,
-};
+const PLATFORM_LOG = Object.fromEntries(PLATFORMS.map(platform => [platform.type, L[platform.log] || L.pre]));
 
 function buildDetailsAndState(p) {
   const isTwitch = p.type === "twitch_presence";
@@ -403,7 +395,7 @@ function buildActivity(p) {
     ? (isYT && p.poster.includes("maxresdefault")
         ? p.poster.replace("maxresdefault", "mqdefault")
         : p.poster)
-    : (p.type === "cinepulse_presence" ? config.largeImageDefault : null);
+    : (DEFAULT_LARGE_IMAGE_TYPES.has(p.type) ? config.largeImageDefault : null);
 
   const { details, state } = buildDetailsAndState(p);
   const mainTitle = truncate(p.seriesTitle || p.movieTitle || p.videoTitle || p.title || "", 128);
@@ -543,11 +535,6 @@ wss.on("listening", () => {
   L.ws(`En écoute sur ${C.dim}ws://127.0.0.1:${config.port}${C.r}`);
 });
 
-const PRESENCE_TYPES = new Set([
-  "cinepulse_presence", "youtube_presence", "nakastream_presence",
-  "twitch_presence", "primevideo_presence"
-]);
-
 wss.on("connection", (sock, request) => {
   const origin = request.headers.origin || "";
   if (origin && !origin.startsWith("chrome-extension://")) {
@@ -608,6 +595,7 @@ function getState() {
     payload:       currentMediaState,
     wsConnected:   wss.clients.size > 0,
     discConnected: discord.ready,
+    platforms:     PLATFORMS.map(({ id, name, type }) => ({ id, name, type })),
   };
 }
 

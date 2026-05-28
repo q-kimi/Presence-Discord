@@ -1,0 +1,9 @@
+{
+  "id": "cinepulse",
+  "name": "Cinepulse",
+  "type": "cinepulse_presence",
+  "matches": ["*://*.cinepulse.vc/*"],
+  "presenceScript": "websites/C/Cinepulse/presence.js",
+  "enabledByDefault": true,
+  "largeImageDefault": "cinepulse_logo"
+}
