@@ -257,6 +257,8 @@
   function start() {
     if (!presence || pollHandle) return;
 
+    connectKeepalive();
+
     if (!setupDone) {
       setupDone = true;
       presence.setup?.(ctx);
@@ -297,6 +299,7 @@
   };
 
   document.addEventListener("visibilitychange", updateTabHidden);
-  connectKeepalive();
-  window.addEventListener("beforeunload", () => sendUpdate({ type: "presence_clear" }));
+  window.addEventListener("beforeunload", () => {
+    if (presence && lastPayload) sendUpdate({ type: "presence_clear" });
+  });
 })();

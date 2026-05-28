@@ -37,6 +37,7 @@ const L = {
   nk:   (...a) => console.log(tag(C.cy,  "Nakastream"  ), ...a),
   tw:   (...a) => console.log(tag(C.pu,  "Twitch"      ), ...a),
   pv:   (...a) => console.log(tag(C.yl,  "Prime Video" ), ...a),
+  pl:   (...a) => console.log(tag(C.yl,  "Plex"        ), ...a),
   tmdb: (...a) => console.log(tag(C.dim, "tmdb"        ), ...a),
   pre:  (...a) => console.log(tag(C.dim, "presence"    ), ...a),
   exit: (...a) => console.log(tag(C.dim, "exit"        ), ...a),
@@ -356,9 +357,13 @@ function buildDetailsAndState(p) {
   let details, state;
   switch (p.contentType) {
     case "series":
-      details = p.episodeTitle || p.seriesTitle || fallback;
-      state   = p.season != null && p.episodeNum != null
-        ? `Saison ${p.season} · Épisode ${p.episodeNum}` : null;
+      details = p.seriesTitle || p.title || fallback;
+      if (p.season != null && p.episodeNum != null) {
+        state = `Saison ${p.season} · Épisode ${p.episodeNum}`;
+        if (p.episodeTitle) state += ` - ${p.episodeTitle}`;
+      } else {
+        state = p.episodeTitle || null;
+      }
       break;
     case "movie":
       details = p.movieTitle || p.title || fallback;

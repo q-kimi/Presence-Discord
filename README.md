@@ -5,7 +5,7 @@
 # Presence Discord
 
 **Affiche automatiquement ce que tu regardes sur ton profil Discord.**  
-YouTube · Twitch · Cinepulse · Nakastream · Prime Video
+YouTube · Twitch · Plex · Cinepulse · Nakastream · Prime Video
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blueviolet?style=flat-square)](https://github.com/q-kimi/presence-discord/releases)
 [![Manifest](https://img.shields.io/badge/manifest-v3-blue?style=flat-square)](#)
@@ -77,6 +77,7 @@ L'extension détecte la lecture sur les plateformes supportées et envoie un pay
 |---------------|:--------:|:-----:|:---------------:|:-----------:|
 | YouTube       | ✓ | ✓ | ✓ | ✓ |
 | Twitch        | ✓ | ✓ | ✓ | — |
+| Plex          | ✓ | ✓ | ✓ | ✓ |
 | Cinepulse     | ✓ | ✓ | ✓ | ✓ |
 | Nakastream    | ✓ | ✓ | ✓ | ✓ |
 | Prime Video   | ✓ | ✓ | ✓ | ✓ |

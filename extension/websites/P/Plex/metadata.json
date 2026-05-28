@@ -1,0 +1,9 @@
+{
+  "id": "plex",
+  "name": "Plex",
+  "type": "plex_presence",
+  "matches": ["*://app.plex.tv/*", "http://*/*", "https://*/*"],
+  "presenceScript": "websites/P/Plex/presence.js",
+  "enabledByDefault": true,
+  "needsTmdbPoster": true
+}

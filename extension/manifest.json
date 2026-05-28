@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Presence Discord",
   "version": "1.0.0",
-  "description": "Affiche sur ton profil Discord ce que tu regardes sur Cinepulse, YouTube, Nakastream, Twitch et Prime Video.",
+  "description": "Affiche sur ton profil Discord ce que tu regardes sur Cinepulse, Plex, YouTube, Nakastream, Twitch et Prime Video.",
 
   "minimum_chrome_version": "88",
 
@@ -13,7 +13,9 @@
     "*://*.youtube.com/*",
     "*://*.nakastream.tv/*",
     "*://*.twitch.tv/*",
-    "*://*.primevideo.com/*"
+    "*://*.primevideo.com/*",
+    "http://*/*",
+    "https://*/*"
   ],
 
   "background": {
