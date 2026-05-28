@@ -1,0 +1,8 @@
+{
+  "id": "youtube",
+  "name": "YouTube",
+  "type": "youtube_presence",
+  "matches": ["*://*.youtube.com/*"],
+  "presenceScript": "websites/Y/YouTube/presence.js",
+  "enabledByDefault": true
+}

@@ -11,6 +11,62 @@ let lastPayload         = null;
 let lastEnrichedPayload = null;
 let lastPayloadTabId    = null;
 let currentStatus       = { connected: false, error: null };
+let platformRegistry    = null;
+let scriptRegistration  = null;
+
+const WEBSITE_SCRIPT_PREFIX = "presence-website:";
+
+async function loadWebsiteMetadata() {
+  const indexUrl = chrome.runtime.getURL("websites/index.json");
+  const paths = await fetch(indexUrl).then(r => r.json());
+  const metadatas = await Promise.all(paths.map(async metadataPath => {
+    const metadata = await fetch(chrome.runtime.getURL(metadataPath)).then(r => r.json());
+    return { ...metadata, metadataPath };
+  }));
+
+  return metadatas.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function getPlatformRegistry() {
+  if (platformRegistry) return platformRegistry;
+
+  const platforms = await loadWebsiteMetadata();
+  platformRegistry = {
+    platforms,
+    typeToSite: Object.fromEntries(platforms.map(p => [p.type, p.id])),
+    siteDefaults: Object.fromEntries(platforms.map(p => [p.id, p.enabledByDefault !== false])),
+  };
+  return platformRegistry;
+}
+
+async function registerWebsiteContentScripts() {
+  const { platforms } = await getPlatformRegistry();
+  const registered = await chrome.scripting.getRegisteredContentScripts();
+  const staleIds = registered
+    .map(script => script.id)
+    .filter(id => id.startsWith(WEBSITE_SCRIPT_PREFIX));
+
+  if (staleIds.length > 0) {
+    await chrome.scripting.unregisterContentScripts({ ids: staleIds });
+  }
+
+  await chrome.scripting.registerContentScripts(platforms.map(platform => ({
+    id: `${WEBSITE_SCRIPT_PREFIX}${platform.id}`,
+    matches: platform.matches,
+    js: ["content.js", platform.presenceScript],
+    runAt: "document_idle",
+    allFrames: false,
+  })));
+}
+
+function ensureWebsiteContentScripts() {
+  if (!scriptRegistration) {
+    scriptRegistration = registerWebsiteContentScripts()
+      .catch(e => console.error("Content script registration failed", e))
+      .finally(() => { scriptRegistration = null; });
+  }
+  return scriptRegistration;
+}
 
 async function getWsUrl() {
   const { wsUrl } = await chrome.storage.local.get("wsUrl");
@@ -79,23 +135,15 @@ function send(payload) {
 }
 
 // ─── Filtrage par site ────────────────────────────────────────────────────────
-const TYPE_TO_SITE = {
-  cinepulse_presence:   "cinepulse",
-  youtube_presence:     "youtube",
-  nakastream_presence:  "nakastream",
-  twitch_presence:      "twitch",
-  primevideo_presence:  "primevideo",
-};
-const SITE_DEFAULTS = { cinepulse: true, youtube: true, nakastream: true, twitch: true, primevideo: true };
-
 let cachedSites = null;
 
 async function isSiteEnabled(payload) {
+  const { siteDefaults, typeToSite } = await getPlatformRegistry();
   if (!cachedSites) {
     const { enabledSites = {} } = await chrome.storage.local.get("enabledSites");
-    cachedSites = { ...SITE_DEFAULTS, ...enabledSites };
+    cachedSites = { ...siteDefaults, ...enabledSites };
   }
-  const key = TYPE_TO_SITE[payload.type];
+  const key = typeToSite[payload.type];
   return key ? cachedSites[key] !== false : true;
 }
 
@@ -148,11 +196,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.kind === "get_state") {
-    chrome.storage.local.get(["wsUrl", "enabledSites"]).then((s) => {
+    Promise.all([
+      chrome.storage.local.get(["wsUrl", "enabledSites"]),
+      getPlatformRegistry(),
+    ]).then(([s, registry]) => {
       sendResponse({
         status:      currentStatus,
         wsUrl:       s.wsUrl || DEFAULT_WS_URL,
         lastPayload: lastEnrichedPayload || lastPayload,
+        platforms:   registry.platforms.map(({ id, name, type, enabledByDefault }) => ({ id, name, type, enabledByDefault })),
         prefs: {
           enabledSites: s.enabledSites || {},
         },
@@ -163,11 +215,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg.kind === "prefs_updated") {
     cachedSites = null;
-    chrome.storage.local.get(["enabledSites"]).then(({ enabledSites = {} }) => {
-      const sites = { ...SITE_DEFAULTS, ...enabledSites };
+    Promise.all([
+      chrome.storage.local.get(["enabledSites"]),
+      getPlatformRegistry(),
+    ]).then(([{ enabledSites = {} }, registry]) => {
+      const sites = { ...registry.siteDefaults, ...enabledSites };
       cachedSites = sites;
       if (lastPayload && lastPayload.type !== "presence_clear") {
-        const platform = TYPE_TO_SITE[lastPayload.type];
+        const platform = registry.typeToSite[lastPayload.type];
         if (platform && !sites[platform]) {
           lastPayload = null;
           send({ type: "presence_clear" });
@@ -203,4 +258,12 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onDisconnect.addListener(() => {});
 });
 
+chrome.runtime.onInstalled.addListener(() => {
+  ensureWebsiteContentScripts();
+});
+chrome.runtime.onStartup.addListener(() => {
+  ensureWebsiteContentScripts();
+});
+
+ensureWebsiteContentScripts();
 connect();

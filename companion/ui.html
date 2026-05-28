@@ -460,10 +460,7 @@
   }
 
 
-  const PLATFORM={
-    youtube_presence:"YouTube",nakastream_presence:"Nakastream",
-    cinepulse_presence:"Cinepulse",twitch_presence:"Twitch",primevideo_presence:"Prime Video",
-  };
+  let PLATFORM={};
 
   let syncedPayload=null,syncedAt=0,lastSec=-1;
 
@@ -494,6 +491,7 @@
 
   function renderState(s){
     if(!s)return;
+    if(Array.isArray(s.platforms))PLATFORM=Object.fromEntries(s.platforms.map(p=>[p.type,p.name]));
     $("wsDot").className="sdot"+(s.wsConnected?" on":"");
     $("discDot").className="sdot"+(s.discConnected?" on":"");
     const p=s.payload,bd=$("npBackdrop");
@@ -506,7 +504,7 @@
     }
     $("npIdle").style.display="none";
     $("npActive").style.display="flex";
-    const isYT=p.type==="youtube_presence",isLive=!!p.isLive;
+    const isLive=!!p.isLive;
     syncedPayload=p;syncedAt=p.timestamp||Date.now();lastSec=-1;
     if(p.poster){bd.style.backgroundImage=`url("${p.poster}")`;bd.classList.add("on");}
     else{bd.style.backgroundImage="none";bd.classList.remove("on");}

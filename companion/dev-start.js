@@ -17,7 +17,7 @@ const projectDir   = __dirname;
 try { fs.unlinkSync(appAsarPath); } catch (_) {}
 
 // Source files to include in the dev asar
-const INCLUDE       = ['main.js', 'core.js', 'preload.js', 'ui.html', 'build', 'config.json'];
+const INCLUDE       = ['main.js', 'core.js', 'platforms.js', 'preload.js', 'ui.html', 'build', 'config.json'];
 const RUNTIME_MODS  = ['ws'];
 
 (async () => {
