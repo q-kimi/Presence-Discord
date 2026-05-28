@@ -1,16 +1,9 @@
-# ─── Secrets ──────────────────────────────────────────────────────────────────
-companion/.env
-
-# ─── Dépendances ──────────────────────────────────────────────────────────────
-companion/node_modules/
-
-# ─── Build output ─────────────────────────────────────────────────────────────
-companion/dist/
-dist/win-unpacked/
-dist/builder-debug.yml
-
 # ─── Outils de build (binaires auto-téléchargés) ──────────────────────────────
 companion/build/rcedit.exe
 
 # ─── Claude Code ──────────────────────────────────────────────────────────────
 .claude/
+
+dist/
+*.env
+**/node_modules/
